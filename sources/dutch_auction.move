@@ -98,10 +98,10 @@ module admin::dutch_auction {
         table::add(auctions, dutch_auction_name, dutch_auction);
     }
 
-    public fun get_price(starting_price: u64, discount_rate: u64, start_at: u64, end_at: u64) : u64{
+    public fun get_price(starting_price: u64, discount_rate: u64, start_at: u64) : u64{
         let time_elapsed = now_seconds() - start_at;
-        let time_total = end_at - start_at;
-        starting_price - (starting_price * time_elapsed * discount_rate / time_total)
+        let discount = discount_rate * time_elapsed;
+        starting_price - discount
     }
 
     public entry fun buy_token<CoinType>(buyer: &signer, collection_name: String, token_name: String, property_version: u64, dutch_auction_name: String) acquires DutchAuctions, TokenCap {
@@ -121,7 +121,7 @@ module admin::dutch_auction {
         assert!(dutch_auction.start_at <= now_seconds(), EAUCTION_NOT_STARTED);
         assert!(dutch_auction.end_at >= now_seconds(), EAUCTION_ENDED);
 
-        let price = get_price(dutch_auction.starting_price, dutch_auction.discount_rate, dutch_auction.start_at, dutch_auction.end_at);
+        let price = get_price(dutch_auction.starting_price, dutch_auction.discount_rate, dutch_auction.start_at);
         assert!(price > 0, EBUY_AMOUNT_TOO_LOW);
 
         let royalty = token::get_royalty(token_id);
@@ -163,6 +163,7 @@ module admin::dutch_auction {
     }
 
     public entry fun cancel_auction_and_claim<CoinType>(seller: &signer, dutch_auction_name: String) acquires DutchAuctions, TokenCap{
+        let seller_addr = signer::address_of(seller);
         let dutch_auction_cap = &borrow_global<TokenCap>(@admin).cap;
         let dutch_auction_signer = &account::create_signer_with_capability(dutch_auction_cap);
         let dutch_auction_addr = signer::address_of(dutch_auction_signer);
@@ -170,6 +171,8 @@ module admin::dutch_auction {
         let dutch_auctions = borrow_global_mut<DutchAuctions<CoinType>>(dutch_auction_addr);
         let auctions = &mut dutch_auctions.auctions;
         let dutch_auction = table::borrow_mut(auctions, dutch_auction_name);
+
+        assert!(dutch_auction.seller == seller_addr, ENOT_VALID_OWNER);
 
         let token = option::extract(&mut dutch_auction.locked_token);
         token::deposit_token(seller, token);
