@@ -1,4 +1,4 @@
-module admin::dutch_auction {
+module admin::dutch_auction_nft {
     use std::string::String;
     use std::signer;
     use std::option::{Self, Option};
@@ -53,21 +53,30 @@ module admin::dutch_auction {
         discount_rate: u64
     }
 
-    public entry fun new_dutch_auction<CoinType>(seller: &signer,dutch_auction_name: String, creator: address, collection_name: String, token_name: String, property_version: u64, starting_price: u64, start_at: u64, end_at: u64, discount_rate: u64) acquires DutchAuctions {
-        let seller_addr = signer::address_of(seller);
-        //create resource account for market
-        let (dutch_auction_signer, dutch_auction_cap) = account::create_resource_account(seller, x"01");
+    public entry fun init<CoinType>(sender: &signer) {
+        let sender_addr = signer::address_of(sender);
+        let (dutch_auction_signer, dutch_auction_cap) = account::create_resource_account(sender, x"01");
         let signer_address = signer::address_of(&dutch_auction_signer);
-        assert!(end_at > start_at, EEND_TIME_BEFORE_START_TIME);
-        assert!(starting_price > 0, ESTARTING_PRICE_HIGHER_THAN_RESERVE_PRICE);
-        assert!(seller_addr == @admin, ENOT_VALID_OWNER);
+        assert!(sender_addr == @admin, ENOT_VALID_OWNER);
         if (!exists<DutchAuctions<CoinType>>(signer_address)) {
             move_to(&dutch_auction_signer, DutchAuctions { auctions: table::new<String, DutchAuction<CoinType>>() });
         };
 
         if (!exists<TokenCap>(@admin)) {
-            move_to(seller, TokenCap { cap: dutch_auction_cap });
+            move_to(sender, TokenCap { cap: dutch_auction_cap });
         };
+    }
+
+    public entry fun new_dutch_auction<CoinType>(seller: &signer,dutch_auction_name: String, creator: address, collection_name: String, token_name: String, property_version: u64, starting_price: u64, end_at: u64, discount_rate: u64) acquires DutchAuctions, TokenCap {
+        let seller_addr = signer::address_of(seller);
+        let start_at = now_seconds();
+
+        assert!(end_at > start_at, EEND_TIME_BEFORE_START_TIME);
+        assert!(starting_price > 0, ESTARTING_PRICE_HIGHER_THAN_RESERVE_PRICE);
+
+        let dutch_auction_cap = &borrow_global<TokenCap>(@admin).cap;
+        let dutch_auction_signer = &account::create_signer_with_capability(dutch_auction_cap);
+        let signer_address = signer::address_of(dutch_auction_signer);
 
         let token_id = token::create_token_id_raw(creator, collection_name, token_name, property_version);
 
