@@ -94,7 +94,7 @@ module admin::dutch_auction {
             discount_rate: discount_rate
         };
 
-        let auctions = &mut borrow_global_mut<DutchAuctions<CoinType>>(signer::address_of(seller)).auctions;
+        let auctions = &mut borrow_global_mut<DutchAuctions<CoinType>>(signer_address).auctions;
         table::add(auctions, dutch_auction_name, dutch_auction);
     }
 
